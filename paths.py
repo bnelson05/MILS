@@ -5,12 +5,12 @@
 # LICENSE file in the root directory of this source tree.
 
 # Output dir
-OUTPUT_DIR = '/path/to/output_dir/'
+OUTPUT_DIR = '/content/outputs/'
 
 # Image captioning
-IMAGEC_COCO_ANNOTATIONS = '/path/to/coco/val2014/annotations/captions_val2014.json'
-IMAGEC_COCO_IMAGES = '/path/to/coco/val2014/val2014'
-IMAGEC_COCO_SPLITS = '/path/to/coco/test/split' # TODO: add some reference here
+IMAGEC_COCO_ANNOTATIONS = '/content/data/coco/annotations/captions_val2014.json'
+IMAGEC_COCO_IMAGES = '/content/data/coco/images/val2014'
+IMAGEC_COCO_SPLITS = '/content/dataset_coco.json'
 
 # Video captioning
 VIDEOC_MSRVTT_ANNOTATIONS = '/path/to/msrvtt/test_videodatainfo.json'
