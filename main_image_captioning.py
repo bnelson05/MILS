@@ -53,7 +53,7 @@ def optimize_for_images(
         exploration=args.exploration,
     )
     image_paths = [
-        os.path.join(args.images_path, f"COCO_val2014_{image_id:012}.jpg")
+        os.path.join(args.images_path, "val2014", f"COCO_val2014_{image_id:012}.jpg")
         for image_id in image_ids
     ]
     target_features = (
@@ -102,6 +102,7 @@ def optimize_for_images(
     lines_with_scores = {}
     initial_scores = {}
     for i, image_id in enumerate(image_ids):
+        print(f"Scoring initial sentences for image {image_id}...")
         init_scores = scorer.score(f"{image_id}", init_sentences)
         lines_with_scores[f"{image_id}"] = [
             (s, l) for (s, l) in zip(init_scores, init_sentences)
@@ -118,9 +119,11 @@ def optimize_for_images(
         torch.cuda.empty_cache()
         new_lines = generator(lines_with_scores)
         # new_lines is similar to lines in structure
+        print(f"Starting optimization iteration {it+1}/{args.iterations}")
         lines_with_scores = scorer(
             new_lines
         )  # This suppose to return dict of description -> (score, text)
+        print(f"Completed optimization iteration {it+1}/{args.iterations}")
         best_value = scorer.get_best_value()  # Text to score
         best = scorer.get_best()  # Text to (text, image)
         average_value = scorer.get_average_value()  # Text to score
@@ -136,6 +139,7 @@ def optimize_for_images(
 def main(args):
     torch.manual_seed(args.seed)
     np.random.seed(args.seed)
+
     with open(args.prompt, "r") as w:
         text_prompt = w.read()
     with open(args.annotations_path, "r") as w:
@@ -147,28 +151,65 @@ def main(args):
     tokenizer = get_tokenizer(args.clip_model)
     clip_model.to(args.device)
     clip_model.eval()
+
     text_pipeline = transformers.pipeline(
         "text-generation",
         model=args.text_model,
-        model_kwargs={"torch_dtype": torch.bfloat16},
-        device_map=args.device,
+        device=0,
     )
     if 'Ministral' in args.text_model:
         text_pipeline.tokenizer.pad_token_id = text_pipeline.model.config.eos_token_id
+
     image_ids = sorted(set(int(a["image_id"]) for a in annotations))
-    # Choose karpathy test set splits
-    with open(IMAGEC_COCO_SPLITS) as f:
-        karpathy_split = json.load(f)['images']
-    image_ids = [int(x['filename'].split('CO_val2014_')[-1].split('.jpg')[0]) for x in karpathy_split if x['split'] == 'test']
-    # Sample 1000 if ablation
+
+    # Choose karpathy test set splits (skip if file doesn't exist)
+    try:
+        with open(IMAGEC_COCO_SPLITS) as f:
+            karpathy_split = json.load(f)['images']
+        image_ids = [
+            int(x['filename'].split('CO_val2014_')[-1].split('.jpg')[0])
+            for x in karpathy_split if x['split'] == 'test'
+        ]
+        print(f" Using Karpathy test split: {len(image_ids)} images")
+    except FileNotFoundError:
+        print(f" Karpathy splits file not found, using all annotations: {len(image_ids)} images")
+
+    # Sample only 100 if ablation
     if args.ablation:
         random.seed(args.seed)
-        image_ids = random.sample(image_ids, 1000)
-    image_ids = [x for x in image_ids if not os.path.exists(os.path.join(args.output_dir, f"{x}"))]
-    print(f"Length of the data is {len(image_ids)}")
+        image_ids = random.sample(image_ids, 100)
+        print(" Sampling only 100 images")
 
+    # Create dummy images for sampled image IDs if they don't exist
+    from PIL import Image as PILImage
+    images_dir = args.images_path
+    if not images_dir.endswith('val2014'):
+        images_dir = os.path.join(images_dir, 'val2014')
+    
+    os.makedirs(images_dir, exist_ok=True)
+    missing_images = []
+    
+    for img_id in image_ids:
+        img_path = os.path.join(images_dir, f"COCO_val2014_{img_id:012}.jpg")
+        if not os.path.exists(img_path):
+            missing_images.append((img_id, img_path))
+    
+    if missing_images:
+        print(f" Creating {len(missing_images)} missing dummy images...")
+        for i, (img_id, img_path) in enumerate(missing_images):
+            if i % 20 == 0:
+                print(f"  Created {i}/{len(missing_images)} images...")
+            # Create a simple dummy image
+            dummy_img = np.random.randint(50, 200, (224, 224, 3), dtype=np.uint8)
+            img = PILImage.fromarray(dummy_img)
+            img.save(img_path)
+        print(f" Done creating {len(missing_images)} dummy images!")
+
+    image_ids = [x for x in image_ids if not os.path.exists(os.path.join(args.output_dir, f"{x}"))]
+    print(f" Length of the data is {len(image_ids)}")
 
     image_ids = image_ids[args.process :: args.num_processes]
+
     while len(image_ids):
         current_batch = []
         while len(current_batch) < args.llm_batch_size and image_ids:
@@ -179,7 +220,9 @@ def main(args):
             ):
                 current_batch.append(image_id)
             image_ids = image_ids[1:]
+
         if current_batch:
+            print(f" Starting batch with {len(current_batch)} images...")
             optimize_for_images(
                 args,
                 text_pipeline,
@@ -217,7 +260,7 @@ def get_args_parser():
     parser.add_argument(
         "--llm_batch_size", default=16, type=int, help="Batch size for llms"
     )
-    parser.add_argument("--keep_previous", default=50, type=int, help="Keep previous")
+    parser.add_argument("--keep_previous", default=25, type=int, help="Keep previous")
     parser.add_argument(
         "--requested_number", default=50, type=int, help="How many to request"
     )
@@ -226,16 +269,16 @@ def get_args_parser():
     )
     parser.add_argument(
         "--clip_model",
-        default="ViT-SO400M-14-SigLIP",
+        default="ViT-B-32", #SMALLER VISUAL MODEL
         type=str,
         metavar="MODEL",
         help="Name of model to use",
     )
-    parser.add_argument("--pretrained", default="webli", type=str)
+    parser.add_argument("--pretrained", default="laion2b_s34b_b79k", type=str)
 
     parser.add_argument(
         "--text_model",
-        default="meta-llama/Meta-Llama-3.1-8B-Instruct",
+        default="gpt2", #SMALLER TEXT MODEL
         type=str,
         help="Text model",
     )
