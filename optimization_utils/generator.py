@@ -143,11 +143,8 @@ class Generator(object):
                     )
                 ]
             else:
-                messages.append(
-                    [
-                        {"role": "user", "content": new_prompt},
-                    ]
-                )
+                # For non-llama models like GPT-2, use raw text instead of chat format
+                messages.append(new_prompt)
         return requests, messages, lines_set
 
     def _run_post_text_function(self, descriptions_per_caption):
@@ -190,10 +187,16 @@ class Generator(object):
         outputs = self.text_pipeline(
             current_messages_batch,
             batch_size=len(current_messages_batch),
-            max_new_tokens=self.max_new_tokens,
+            max_new_tokens=min(200, self.max_new_tokens),  # Much shorter generation
+            max_length=800,  # Ensure total length stays under GPT-2 limit
+            do_sample=True,
+            temperature=0.7,
+            return_full_text=False,
+            truncation=True,  # Truncate long inputs
+            pad_token_id=50256,  # Set explicit pad token
         )
         return [
-            strip_line_counters(text[0]["generated_text"][-1]["content"])
+            strip_line_counters(text["generated_text"])
             for text in outputs
         ]
 
