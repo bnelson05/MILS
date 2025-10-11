@@ -523,138 +523,61 @@ def optimize_for_images(
 
 
 def main(args):
+    # Set seeds
     torch.manual_seed(args.seed)
-    np.random.seed(args.seed)
 
-    with open(args.prompt, "r") as w:
-        text_prompt = w.read()
-    with open(args.annotations_path, "r") as w:
-        annotations = json.load(w)["annotations"]
+    # Load text prompt and annotations
+    with open(args.prompt, "r") as f:
+        text_prompt = f.read()
+    with open(args.annotations_path, "r") as f:
+        annotations = json.load(f)["annotations"]
 
-    clip_model, _, preprocess = create_model_and_transforms(
-        args.clip_model, pretrained=args.pretrained
-    )
+    # Load CLIP model
+    clip_model, _, preprocess = create_model_and_transforms(args.clip_model, pretrained=args.pretrained)
     tokenizer = get_tokenizer(args.clip_model)
     clip_model.to(args.device)
     clip_model.eval()
 
-    # Initialize text generation pipeline with flexible model support
+    # Load text generation model
     print(f" 🤖 Loading text model: {args.text_model}")
-    
-    # Create text pipeline with automatic model detection
-    try:
-        text_pipeline = transformers.pipeline(
-            "text-generation",
-            model=args.text_model,
-            model_kwargs={"torch_dtype": torch.bfloat16},
-            device_map=args.device,
-            trust_remote_code=True,  # Allow custom model architectures
-        )
-        print(f" ✅ Successfully loaded model: {args.text_model}")
-        
-        # Display model information
-        model_info = text_pipeline.model.config
-        print(f" 📊 Model info: {getattr(model_info, 'model_type', 'Unknown')} architecture")
-        print(f" 📏 Model size: ~{getattr(model_info, 'vocab_size', 'Unknown')} vocab size")
-        
-    except Exception as e:
-        print(f" ❌ Error loading model {args.text_model}: {e}")
-        print(f" 💡 Fallback to GPT-2...")
-        text_pipeline = transformers.pipeline(
-            "text-generation",
-            model="gpt2",
-            model_kwargs={"torch_dtype": torch.bfloat16},
-            device_map=args.device,
-        )
-        args.text_model = "gpt2"  # Update args for generator
-    
-    # Handle tokenizer padding for different model types
-    if text_pipeline.tokenizer.pad_token is None:
-        if hasattr(text_pipeline.tokenizer, 'eos_token') and text_pipeline.tokenizer.eos_token:
-            text_pipeline.tokenizer.pad_token = text_pipeline.tokenizer.eos_token
-        else:
-            text_pipeline.tokenizer.pad_token = text_pipeline.tokenizer.unk_token or "<pad>"
-    
-    # Set pad_token_id for the model
-    if hasattr(text_pipeline.model.config, 'pad_token_id'):
-        if text_pipeline.model.config.pad_token_id is None:
-            text_pipeline.model.config.pad_token_id = text_pipeline.tokenizer.pad_token_id
-    
-    # Model-specific recommendations
-    if "gpt2" in args.text_model.lower():
-        print(" ⚠️  Note: GPT-2 may produce inconsistent results.")
-        print(" 💡 Try larger models like 'microsoft/DialoGPT-medium' or 'Qwen/Qwen2.5-0.5B'")
-    elif "qwen" in args.text_model.lower():
-        print(" ✨ Using Qwen model - excellent for instruction following!")
-    elif "mobillama" in args.text_model.lower():
-        print(" 🚀 Using MobiLlama - optimized for efficiency!")
-    else:
-        print(" 🔬 Using experimental model - results may vary")
-    
-    print(f" 🎯 Text model ready: {args.text_model}")
-    print()
+    text_pipeline = transformers.pipeline(
+        "text-generation",
+        model=args.text_model,
+        model_kwargs={"torch_dtype": torch.bfloat16},
+        device_map=args.device,
+        trust_remote_code=True,
+    )
+    print(f" ✅ Model ready: {args.text_model}")
 
-    # Use the specific 16 COCO image IDs that were already downloaded
-    # These are the same images shown in the notebook setup
-    fixed_image_ids = [442539, 170898, 544857, 285820, 188414, 385248, 249227, 502311, 
-                      391895, 397133, 37777, 252219, 87038, 174482, 403385, 6818]
-    
-    print(f" Using pre-downloaded set of {len(fixed_image_ids)} COCO images")
-    print(f" Image IDs: {fixed_image_ids}")
-    
-    # Verify images exist
+    # Ensure tokenizer has pad_token
+    if text_pipeline.tokenizer.pad_token is None:
+        text_pipeline.tokenizer.pad_token = text_pipeline.tokenizer.eos_token or "<pad>"
+    if getattr(text_pipeline.model.config, 'pad_token_id', None) is None:
+        text_pipeline.model.config.pad_token_id = text_pipeline.tokenizer.pad_token_id
+
+    # Collect image IDs from your folder
     images_dir = args.images_path
-    if not images_dir.endswith('val2014'):
-        images_dir = os.path.join(images_dir, 'val2014')
-    
-    existing_images = []
-    missing_images = []
-    
-    for img_id in fixed_image_ids:
-        img_path = os.path.join(images_dir, f"COCO_val2014_{img_id:012}.jpg")
-        if os.path.exists(img_path):
-            existing_images.append(img_id)
-        else:
-            missing_images.append(img_id)
-    
-    if missing_images:
-        print(f" ⚠️  Warning: {len(missing_images)} images not found: {missing_images}")
-        print(f" Please make sure you've run the Colab setup cell first!")
-    
-    if not existing_images:
-        print(" ❌ No images found! Please run the Colab setup cell first.")
-        return
-    
-    # Use existing images
-    image_ids = existing_images
-    print(f" ✅ Found {len(image_ids)} images ready for captioning")
-    
+    image_files = [f for f in os.listdir(images_dir) if f.endswith(".jpg")]
+    image_ids = [int(f.split("_")[-1].split(".")[0]) for f in image_files]
+
     # Remove already processed images
     image_ids = [x for x in image_ids if not os.path.exists(os.path.join(args.output_dir, f"{x}"))]
-    print(f" 📝 {len(image_ids)} images need captioning (others already processed)")
-
     if not image_ids:
         print(" ✅ All images already processed!")
         return
 
+    # Split for multi-process if needed
     image_ids = image_ids[args.process :: args.num_processes]
 
-    # Store all processed image IDs for visualization
-    all_processed_images = []
-    
+    # Process images in batches
     while len(image_ids):
         current_batch = []
         while len(current_batch) < args.llm_batch_size and image_ids:
-            image_id = image_ids[0]
-            if (
-                not os.path.exists(os.path.join(args.output_dir, f"{image_id}"))
-                and image_id not in current_batch
-            ):
+            image_id = image_ids.pop(0)
+            if not os.path.exists(os.path.join(args.output_dir, f"{image_id}")):
                 current_batch.append(image_id)
-            image_ids = image_ids[1:]
 
         if current_batch:
-            print(f" Starting batch with {len(current_batch)} images...")
             optimize_for_images(
                 args,
                 text_pipeline,
@@ -664,20 +587,6 @@ def main(args):
                 tokenizer,
                 preprocess,
             )
-            all_processed_images.extend(current_batch)
-    
-    # Display results after optimization
-    if all_processed_images:
-        print(f"\nOptimization complete! Displaying results for {len(all_processed_images)} images...")
-        
-        # Show images with their best captions
-        display_images_with_captions(all_processed_images, args.images_path, args.output_dir)
-        
-        # Show optimization progress
-        show_optimization_progress(all_processed_images, args.output_dir)
-        
-        print(f"\nResults saved in: {args.output_dir}")
-        print("You can now compare the generated captions with the actual images!")
 
 
 def get_args_parser():
