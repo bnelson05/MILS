@@ -377,6 +377,18 @@ def optimize_for_images(
             os.path.join(save_locations[f"{image_id}"], "log.txt"), "w"
         )
 
+    # debugging
+    test_outputs = text_pipeline(
+        text_prompt,
+        max_new_tokens=50,
+        num_return_sequences=args.requested_number,
+    )
+    print(f"\n--- RAW GENERATIONS for {args.text_model} ---")
+    for o in test_outputs:
+        print(o["generated_text"])
+    print("-------------------------\n")
+
+
     generator = G(
         text_pipeline,
         args.text_model,
