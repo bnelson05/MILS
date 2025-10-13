@@ -555,19 +555,31 @@ def main(args):
     if getattr(text_pipeline.model.config, 'pad_token_id', None) is None:
         text_pipeline.model.config.pad_token_id = text_pipeline.tokenizer.pad_token_id
 
-    # Collect image IDs from your folder
+    # Fixed set of 16 COCO image IDs
+    fixed_image_ids = [
+        442539, 170898, 544857, 285820, 188414, 385248, 249227, 502311,
+        391895, 397133, 37777, 252219, 87038, 174482, 403385, 6818
+    ]
+    
+    # Only keep the ones that actually exist in the folder
     images_dir = args.images_path
-    image_files = [f for f in os.listdir(images_dir) if f.endswith(".jpg")]
-    image_ids = [int(f.split("_")[-1].split(".")[0]) for f in image_files]
-
-    # Remove already processed images
-    image_ids = [x for x in image_ids if not os.path.exists(os.path.join(args.output_dir, f"{x}"))]
-    if not image_ids:
-        print(" ✅ All images already processed!")
-        return
-
-    # Split for multi-process if needed
+    if not images_dir.endswith("val2014"):
+        images_dir = os.path.join(images_dir, "val2014")
+    
+    image_ids = [
+        img_id for img_id in fixed_image_ids
+        if os.path.exists(os.path.join(images_dir, f"COCO_val2014_{img_id:012}.jpg"))
+    ]
+    
+    # Skip ones already processed
+    image_ids = [
+        x for x in image_ids
+        if not os.path.exists(os.path.join(args.output_dir, f"{x}"))
+    ]
+    
+    # Respect process splitting (if running multi-process)
     image_ids = image_ids[args.process :: args.num_processes]
+
 
     # Process images in batches
     while len(image_ids):
