@@ -548,6 +548,7 @@ def main(args):
         trust_remote_code=True,
     )
     print(f" ✅ Model ready: {args.text_model}")
+    print(f" 🔎 Pipeline model path: {text_pipeline.model.config._name_or_path}")
 
     # Ensure tokenizer has pad_token
     if text_pipeline.tokenizer.pad_token is None:
