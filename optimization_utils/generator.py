@@ -14,28 +14,48 @@ import re
 
 
 def strip_line_counters(text):
-    # Split the text into lines
+    """Simple extraction - handles markdown formatting"""
+    import re
+    
     lines = text.split("\n")
-
-    # Strip the line counters and collect the cleaned lines
     cleaned_lines = []
+    
     for line in lines:
-        # Check if the line contains a period followed by a space, which is expected after the counter
-        if ". " in line[:5]:  # A huristic to only count
-            # Find the first period which is used to separate the counter from the text
-            period_index = line.find(".")
-            # Extract the text after the period and the space
-            cleaned_line = line[period_index + 2 :]
-            text = (
-                cleaned_line.split("(")[0]
+        line = line.strip()
+        
+        # Remove markdown formatting
+        line = line.replace('**', '').replace('*', '')
+        
+        # Pattern 1: Standard "1. Description"
+        match = re.match(r'^(\d+)[\.\)]\s+(.+)', line)
+        if match:
+            desc = match.group(2).strip()
+            # Clean the description
+            desc = (
+                desc.split("(")[0]
                 .strip()
                 .replace("<|endoftext|>", "")
                 .replace("<pad>", "")
+                .replace("!", "")
+                .strip('"')
+                .strip("'")
             )
-            text = text.replace("!", "")
-            if text and text not in cleaned_lines:
-                cleaned_lines.append(text)
-
+            # Must have real content
+            if desc and len(desc) > 10 and desc not in cleaned_lines:
+                # Don't include meta-commentary
+                if not any(bad in desc.lower() for bad in ['score:', 'description:', 'caption captures', 'phrase', 'scoring potential']):
+                    cleaned_lines.append(desc)
+        
+        # Pattern 2: Quoted descriptions (sometimes models put them in quotes)
+        elif '"' in line and len(line.split()) > 3:
+            # Extract text between quotes
+            quoted = re.findall(r'"([^"]+)"', line)
+            for desc in quoted:
+                desc = desc.strip()
+                if len(desc) > 10 and desc not in cleaned_lines:
+                    if not any(bad in desc.lower() for bad in ['score', 'description', 'caption']):
+                        cleaned_lines.append(desc)
+    
     return set(cleaned_lines)
 
 
