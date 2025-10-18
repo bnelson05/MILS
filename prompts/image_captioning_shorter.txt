@@ -1,22 +1,10 @@
 You need to provide a short image description. 
 I am providing to you a list of short image descriptions and scores. 
 Higher score means that the image description characterizes the image better: 
+
 {descriptions}
 
-Generate additional {requested_number} short image descriptions that will maximize the score.
-
-FORMAT REQUIRED - YOU MUST FOLLOW THIS EXACTLY:
-1. First description here
-2. Second description here
-3. Third description here
-4. Fourth description here
-5. Fifth description here
-
-RULES:
-- Start EVERY line with a number and period (1. 2. 3. etc.)
-- Keep each description between 5-10 words
-- Be concrete about visual elements
-- Do NOT write any other text, ONLY the numbered list
-
-YOUR NUMBERED LIST:
-1.
+Generate additional {requested_number} short image descriptions that you think that will maximize the score and fully capture the image. 
+Be concrete and try to find elements that are unique to this image. 
+You can introduce new elements to the descriptions, combine unique elements and objects from provided descriptions to form new descriptions, rephrase individual descriptions, drop elements, or simplify descriptions. 
+Be creative and don't be afraid to come up with erroneous descriptions. Put each description in a different line, with a counter at the beginning (e.g. "1. ..."), and try to keep them very short (up to 10 words).
