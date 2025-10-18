@@ -321,6 +321,21 @@ class Generator(object):
             
             # Use simple strip_line_counters from original repo
             extracted_descriptions = strip_line_counters(generated_text)
+
+            print(f"\n{'='*80}")
+            print(f"🔍 FULL DEBUG - Model: {self.text_model_name}")
+            print(f"{'='*80}")
+            print(f"1️⃣ RAW PIPELINE OUTPUT TYPE: {type(text)}")
+            print(f"2️⃣ RAW PIPELINE OUTPUT: {text}")
+            print(f"\n3️⃣ EXTRACTED generated_text VARIABLE:")
+            print(f"'{generated_text}'")
+            print(f"\n4️⃣ LINE-BY-LINE ANALYSIS:")
+            for i, line in enumerate(generated_text.split('\n')):
+                check = ". " in line[:5]
+                print(f"   Line {i}: '{line}' | Has '. ' in [:5]: {check}")
+            print(f"\n5️⃣ strip_line_counters RESULT: {extracted_descriptions}")
+            print(f"   Count: {len(extracted_descriptions)}")
+            print(f"{'='*80}\n")
             
             # Minimal fallback
             if len(extracted_descriptions) == 0:
