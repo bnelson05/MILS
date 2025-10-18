@@ -233,451 +233,111 @@ class Generator(object):
         )
 
     def run_on_message_batch(self, current_messages_batch):
-        """Generate text with model-specific optimizations"""
-        
-        # Fix tokenizer padding for decoder-only models
-        if hasattr(self.text_pipeline.tokenizer, 'padding_side'):
-            original_padding_side = self.text_pipeline.tokenizer.padding_side
-            self.text_pipeline.tokenizer.padding_side = 'left'
-        
-        # Detect model type for optimization
-        model_type = self.text_model_name.lower()
-        
-        # DialoGPT-specific optimization (conversational model)
-        if "dialogo" in model_type or "dialogpt" in model_type:
-            # DialoGPT needs special handling for list generation
-            modified_prompts = []
-            for prompt in current_messages_batch:
-                # Add explicit instruction for list format
-                modified_prompt = f"{prompt}\n\nPlease generate exactly 12 numbered descriptions (1. 2. 3. etc.):\n1."
-                modified_prompts.append(modified_prompt)
-            
-            outputs = self.text_pipeline(
-                modified_prompts,
-                batch_size=len(modified_prompts),
-                max_new_tokens=250,  # Increased for DialoGPT
-                do_sample=True,
-                temperature=0.6,  # Lower for more focused output
-                top_p=0.8,
-                top_k=30,
-                return_full_text=False,
-                truncation=True,
-                pad_token_id=self.text_pipeline.tokenizer.pad_token_id,
-                eos_token_id=self.text_pipeline.tokenizer.eos_token_id,
-                repetition_penalty=1.3,  # Higher to avoid repetition
-                no_repeat_ngram_size=2,  # Prevent immediate repetition
-            )
-            
-            # Enhanced extraction for DialoGPT conversational style
-            results = []
-            for text in outputs:
-                generated_text = ""
-                if isinstance(text, list) and len(text) > 0:
-                    generated_text = text[0].get("generated_text", "")
-                elif isinstance(text, dict):
-                    generated_text = text.get("generated_text", "")
-                else:
-                    generated_text = str(text)
-                
-                # DialoGPT-specific parsing
-                extracted_descriptions = self.extract_dialogo_descriptions(generated_text)
-                
-                # If still low, try fallback
-                if len(extracted_descriptions) < 3:
-                    fallback_descriptions = self.extract_descriptions_fallback(generated_text)
-                    extracted_descriptions.update(fallback_descriptions)
-                
-                # Ensure minimum descriptions
-                if len(extracted_descriptions) == 0:
-                    extracted_descriptions = {"Image with visual elements", "Picture showing objects", "Photo displaying content"}
-                
-                results.append(extracted_descriptions)
-            
-            # Restore original padding
-            if hasattr(self.text_pipeline.tokenizer, 'padding_side'):
-                self.text_pipeline.tokenizer.padding_side = original_padding_side
-                
-            return results
-        
-        # Qwen-specific optimization (instruction-tuned model)
-        elif "qwen" in model_type:
-            # Qwen models work best with specific parameters
-            outputs = self.text_pipeline(
-                current_messages_batch,
-                batch_size=len(current_messages_batch),
-                max_new_tokens=180,  # Optimized for numbered lists
-                do_sample=True,
-                temperature=0.5,  # Lower temperature for more focused output
-                top_p=0.8,  # More focused sampling
-                top_k=30,  # Limit vocabulary for cleaner output
-                return_full_text=False,
-                truncation=True,
-                pad_token_id=self.text_pipeline.tokenizer.pad_token_id,
-                eos_token_id=self.text_pipeline.tokenizer.eos_token_id,
-                repetition_penalty=1.2,  # Prevent repetition
-                no_repeat_ngram_size=2,
-            )
-            
-            # Qwen-specific text extraction
-            results = []
-            for text in outputs:
-                generated_text = ""
-                if isinstance(text, list) and len(text) > 0:
-                    generated_text = text[0].get("generated_text", "")
-                elif isinstance(text, dict):
-                    generated_text = text.get("generated_text", "")
-                else:
-                    generated_text = str(text)
-                
-                # Handle chat template responses
-                if "assistant" in generated_text:
-                    generated_text = generated_text.split("assistant")[-1]
-                
-                # Qwen-specific extraction
-                extracted_descriptions = self.extract_qwen_descriptions(generated_text)
-                
-                # Fallback if needed
-                if len(extracted_descriptions) < 3:
-                    fallback_descriptions = self.extract_descriptions_robust(generated_text)
-                    extracted_descriptions.update(fallback_descriptions)
-                
-                results.append(extracted_descriptions)
-            
-            # Restore padding
-            if hasattr(self.text_pipeline.tokenizer, 'padding_side'):
-                self.text_pipeline.tokenizer.padding_side = original_padding_side
-                
-            return results
-        
-        # LLaMA-style models (with chat templates)
-        elif "llama" in model_type or "mistral" in model_type:
-            outputs = self.text_pipeline(
-                current_messages_batch,
-                batch_size=len(current_messages_batch),
-                max_new_tokens=min(self.max_new_tokens, 300),
-                do_sample=True,
-                temperature=0.7,
-                top_p=0.9,
-                return_full_text=False,
-                truncation=True,
-                pad_token_id=self.text_pipeline.tokenizer.pad_token_id,
-                eos_token_id=self.text_pipeline.tokenizer.eos_token_id,
-                repetition_penalty=1.1,
-            )
-            
-            # Extract text from chat-style models
-            results = []
-            for text in outputs:
-                generated_text = ""
-                if isinstance(text, list) and len(text) > 0:
-                    generated_text = text[0].get("generated_text", "")
-                elif isinstance(text, dict):
-                    generated_text = text.get("generated_text", "")
-                else:
-                    generated_text = str(text)
-                
-                # Handle chat template responses
-                if "assistant" in generated_text:
-                    generated_text = generated_text.split("assistant")[-1]
-                
-                extracted_descriptions = self.extract_descriptions_robust(generated_text)
-                results.append(extracted_descriptions)
-            
-            # Restore padding
-            if hasattr(self.text_pipeline.tokenizer, 'padding_side'):
-                self.text_pipeline.tokenizer.padding_side = original_padding_side
-                
-            return results
-        
-        # GPT-2 style models  
-        elif "gpt" in model_type:
-            outputs = self.text_pipeline(
-                current_messages_batch,
-                batch_size=len(current_messages_batch),
-                max_new_tokens=200,  # Reduced for GPT-2
-                do_sample=True,
-                temperature=0.7,
-                top_p=0.85,
-                top_k=40,
-                return_full_text=False,
-                truncation=True,
-                pad_token_id=self.text_pipeline.tokenizer.pad_token_id,
-                eos_token_id=self.text_pipeline.tokenizer.eos_token_id,
-                repetition_penalty=1.2,
-                num_return_sequences=1,
-            )
-        
-        # MobiLlama and other small models
-        elif "mobillama" in model_type or "phi" in model_type:
-            outputs = self.text_pipeline(
-                current_messages_batch,
-                batch_size=len(current_messages_batch),
-                max_new_tokens=150,  # Smaller for efficiency
-                do_sample=True,
-                temperature=0.8,  # Higher temperature for small models
-                top_p=0.9,
-                return_full_text=False,
-                truncation=True,
-                pad_token_id=self.text_pipeline.tokenizer.pad_token_id,
-                eos_token_id=self.text_pipeline.tokenizer.eos_token_id,
-                repetition_penalty=1.1,
-            )
-        
-        # Default parameters for unknown models
-        else:
-            outputs = self.text_pipeline(
-                current_messages_batch,
-                batch_size=len(current_messages_batch),
-                max_new_tokens=min(self.max_new_tokens, 250),
-                do_sample=True,
-                temperature=0.7,
-                top_p=0.9,
-                return_full_text=False,
-                truncation=True,
-                pad_token_id=getattr(self.text_pipeline.tokenizer, 'pad_token_id', 0),
-                eos_token_id=getattr(self.text_pipeline.tokenizer, 'eos_token_id', 0),
-                repetition_penalty=1.1,
-            )
-        
-        # Enhanced text extraction with better debugging for non-DialoGPT models
-        results = []
-        for i, text in enumerate(outputs):
-            generated_text = ""
-            
-            if isinstance(text, list):
-                if len(text) > 0 and isinstance(text[0], dict) and "generated_text" in text[0]:
-                    generated_text = text[0]["generated_text"]
-                elif len(text) > 0:
-                    generated_text = str(text[0])
-            elif isinstance(text, dict) and "generated_text" in text:
-                generated_text = text["generated_text"]
+    """Generate text with model-specific optimizations but simple extraction"""
+    
+    # Fix tokenizer padding
+    if hasattr(self.text_pipeline.tokenizer, 'padding_side'):
+        original_padding_side = self.text_pipeline.tokenizer.padding_side
+        self.text_pipeline.tokenizer.padding_side = 'left'
+    
+    model_type = self.text_model_name.lower()
+    
+    # Model-specific generation parameters (KEEP FROM FORK)
+    if "qwen" in model_type:
+        outputs = self.text_pipeline(
+            current_messages_batch,
+            batch_size=len(current_messages_batch),
+            max_new_tokens=180,
+            do_sample=True,
+            temperature=0.5,
+            top_p=0.8,
+            top_k=30,
+            return_full_text=False,
+            truncation=True,
+            pad_token_id=self.text_pipeline.tokenizer.pad_token_id,
+            eos_token_id=self.text_pipeline.tokenizer.eos_token_id,
+            repetition_penalty=1.2,
+            no_repeat_ngram_size=2,
+        )
+    elif "gpt" in model_type:
+        outputs = self.text_pipeline(
+            current_messages_batch,
+            batch_size=len(current_messages_batch),
+            max_new_tokens=200,
+            do_sample=True,
+            temperature=0.7,
+            top_p=0.85,
+            top_k=40,
+            return_full_text=False,
+            truncation=True,
+            pad_token_id=self.text_pipeline.tokenizer.pad_token_id,
+            eos_token_id=self.text_pipeline.tokenizer.eos_token_id,
+            repetition_penalty=1.2,
+        )
+    elif "llama" in model_type or "mistral" in model_type:
+        outputs = self.text_pipeline(
+            current_messages_batch,
+            batch_size=len(current_messages_batch),
+            max_new_tokens=min(self.max_new_tokens, 300),
+            do_sample=True,
+            temperature=0.7,
+            top_p=0.9,
+            return_full_text=False,
+            truncation=True,
+            pad_token_id=self.text_pipeline.tokenizer.pad_token_id,
+            eos_token_id=self.text_pipeline.tokenizer.eos_token_id,
+            repetition_penalty=1.1,
+        )
+    else:
+        # Default parameters
+        outputs = self.text_pipeline(
+            current_messages_batch,
+            batch_size=len(current_messages_batch),
+            max_new_tokens=min(self.max_new_tokens, 250),
+            do_sample=True,
+            temperature=0.7,
+            top_p=0.9,
+            return_full_text=False,
+            truncation=True,
+            pad_token_id=getattr(self.text_pipeline.tokenizer, 'pad_token_id', 0),
+            eos_token_id=getattr(self.text_pipeline.tokenizer, 'eos_token_id', 0),
+            repetition_penalty=1.1,
+        )
+    
+    # SIMPLE EXTRACTION (FROM ORIGINAL REPO)
+    results = []
+    for text in outputs:
+        # Extract generated text
+        generated_text = ""
+        if isinstance(text, list) and len(text) > 0:
+            if isinstance(text[0], dict) and "generated_text" in text[0]:
+                generated_text = text[0]["generated_text"]
             else:
-                generated_text = str(text)
-            
-            # Enhanced extraction with better parsing
-            extracted_descriptions = self.extract_descriptions_robust(generated_text)
-            
-            # If we got very few descriptions, try alternative parsing
-            if len(extracted_descriptions) < 3:
-                fallback_descriptions = self.extract_descriptions_fallback(generated_text)
-                extracted_descriptions.update(fallback_descriptions)
-            
-            # Ensure we have at least some descriptions
-            if len(extracted_descriptions) == 0:
-                extracted_descriptions = {"Generated image description"}
-            
-            results.append(extracted_descriptions)
-            
-            if self.verbose > 0:
-                print(f"Model: {self.text_model_name}")
-                print(f"Generated text: {generated_text[:150]}...")
-                print(f"Extracted {len(extracted_descriptions)} descriptions")
+                generated_text = str(text[0])
+        elif isinstance(text, dict) and "generated_text" in text:
+            generated_text = text["generated_text"]
+        else:
+            generated_text = str(text)
         
-        # Restore original padding
-        if hasattr(self.text_pipeline.tokenizer, 'padding_side'):
-            self.text_pipeline.tokenizer.padding_side = original_padding_side
+        # Use simple strip_line_counters from original repo
+        extracted_descriptions = strip_line_counters(generated_text)
         
-        return results
+        # Minimal fallback
+        if len(extracted_descriptions) == 0:
+            extracted_descriptions = {"Generated image description"}
+        
+        results.append(extracted_descriptions)
+        
+        if self.verbose > 0:
+            print(f"Model: {self.text_model_name}")
+            print(f"Generated text: {generated_text[:150]}...")
+            print(f"Extracted {len(extracted_descriptions)} descriptions")
     
-    def extract_qwen_descriptions(self, text):
-        """Specialized extraction for Qwen instruction-tuned model outputs"""
-        descriptions = set()
-        
-        # Clean the text first
-        text = text.replace("```", "").replace("**", "").strip()
-        
-        # Split into lines for processing
-        lines = text.split('\n')
-        
-        for line in lines:
-            line = line.strip()
-            if not line:
-                continue
-            
-            # Remove Qwen's common prefixes and formatting
-            line = re.sub(r'^(Here are|Here\'s|Based on|Generate|Additional|The following)', '', line, flags=re.IGNORECASE).strip()
-            line = line.replace("description:", "").replace("Description:", "").strip()
-            
-            # Pattern 1: Clean numbered lists (primary target)
-            if re.match(r'^\d+[\.\)]\s+', line):
-                desc = re.sub(r'^\d+[\.\)]\s+', '', line).strip()
-                # Clean up common Qwen artifacts
-                desc = desc.replace('"', '').replace("'", "").strip()
-                desc = re.sub(r'^\[.*?\]\s*', '', desc)  # Remove [description] format
-                if self.is_valid_qwen_description(desc):
-                    descriptions.add(desc)
-            
-            # Pattern 2: Look for descriptions in quotes or brackets
-            elif '"' in line or "'" in line:
-                # Extract quoted content
-                matches = re.findall(r'["\']([^"\']*)["\']', line)
-                for match in matches:
-                    if self.is_valid_qwen_description(match):
-                        descriptions.add(match)
-            
-            # Pattern 3: Lines that start with visual words (but aren't instructions)
-            elif (any(word in line.lower()[:20] for word in ['image', 'picture', 'photo', 'scene']) and
-                  not any(bad in line.lower() for bad in ['generate', 'write', 'create', 'you need', 'based on', 'following'])):
-                if self.is_valid_qwen_description(line):
-                    descriptions.add(line)
-            
-            # Pattern 4: Simple descriptive lines (fallback)
-            elif (len(line.split()) >= 3 and len(line.split()) <= 12 and
-                  any(word in line.lower() for word in ['with', 'showing', 'featuring', 'displaying']) and
-                  not any(bad in line.lower() for bad in ['score', 'higher', 'better', 'maximize', 'instruction'])):
-                if self.is_valid_qwen_description(line):
-                    descriptions.add(line)
-        
-        # If we got very few descriptions, try extracting from structured lists
-        if len(descriptions) < 3:
-            # Look for any structured content that might be buried in formatting
-            structured_content = re.findall(r'(\d+\.\s*[^.]+\.)', text)
-            for content in structured_content:
-                clean_content = re.sub(r'^\d+\.\s*', '', content).rstrip('.')
-                if self.is_valid_qwen_description(clean_content):
-                    descriptions.add(clean_content)
-        
-        return descriptions
-
-    def is_valid_qwen_description(self, desc):
-        """Validate descriptions specifically for Qwen output"""
-        if not desc or len(desc.strip()) < 5:
-            return False
-        
-        desc = desc.strip()
-        words = desc.split()
-        
-        # Length check
-        if len(words) < 3 or len(words) > 15:
-            return False
-        
-        # Filter out instruction-like text (common in Qwen)
-        bad_starts = [
-            'generate', 'write', 'create', 'you need', 'i am', 'higher score', 
-            'be creative', 'remember', 'try to', 'make sure', 'please', 'note that',
-            'based on', 'according to', 'following', 'additional', 'here are',
-            'description', 'short image', 'requirements', 'format'
-        ]
-        if any(desc.lower().startswith(bad) for bad in bad_starts):
-            return False
-        
-        # Filter out meta-commentary
-        bad_content = [
-            'score', 'higher', 'better', 'maximize', 'criteria', 'guidelines',
-            'instruction', 'template', 'example', 'format', 'output', 'generate'
-        ]
-        if any(bad in desc.lower() for bad in bad_content):
-            return False
-        
-        # Must contain visual/descriptive words
-        visual_words = [
-            'image', 'picture', 'photo', 'showing', 'with', 'featuring', 
-            'displaying', 'scene', 'view', 'pattern', 'texture', 'color'
-        ]
-        if not any(word in desc.lower() for word in visual_words):
-            return False
-        
-        return True
+    # Restore padding
+    if hasattr(self.text_pipeline.tokenizer, 'padding_side'):
+        self.text_pipeline.tokenizer.padding_side = original_padding_side
     
-    def extract_dialogo_descriptions(self, text):
-        """Specialized extraction for DialoGPT conversational outputs"""
-        descriptions = set()
-        
-        # DialoGPT tends to be more conversational, so look for different patterns
-        lines = text.split('\n')
-        
-        for line in lines:
-            line = line.strip()
-            if not line:
-                continue
-                
-            # Remove conversational markers
-            line = line.replace("Sure!", "").replace("Here are", "").replace("I can", "").strip()
-            
-            # Pattern 1: Numbered list (most common)
-            if re.match(r'^\d+[\.\)]\s*', line):
-                desc = re.sub(r'^\d+[\.\)]\s*', '', line).strip()
-                if self.is_valid_description(desc):
-                    descriptions.add(desc)
-            
-            # Pattern 2: Dash or bullet points
-            elif line.startswith(('- ', '• ', '* ', '→ ')):
-                desc = line[2:].strip()
-                if self.is_valid_description(desc):
-                    descriptions.add(desc)
-            
-            # Pattern 3: Conversational descriptions
-            elif any(word in line.lower() for word in ['image', 'picture', 'photo', 'scene']):
-                # Clean up conversational elements
-                desc = line.replace("Here's", "").replace("This is", "").strip()
-                if self.is_valid_description(desc):
-                    descriptions.add(desc)
-        
-        return descriptions
-    
-    def extract_descriptions_robust(self, text):
-        """Robust extraction for GPT-2 outputs"""
-        descriptions = set()
-        lines = text.split('\n')
-        
-        for line in lines:
-            line = line.strip()
-            if not line:
-                continue
-                
-            # Clean the line
-            line = line.replace("<|endoftext|>", "").replace("<pad>", "").strip()
-            
-            # Pattern 1: Numbered list (1. 2. etc.)
-            if re.match(r'^\d+\.', line):
-                desc = re.sub(r'^\d+\.\s*', '', line).strip()
-                if self.is_valid_description(desc):
-                    descriptions.add(desc)
-            
-            # Pattern 2: Bullet points
-            elif line.startswith(('- ', '• ', '* ')):
-                desc = line[2:].strip()
-                if self.is_valid_description(desc):
-                    descriptions.add(desc)
-            
-            # Pattern 3: Lines that look like descriptions
-            elif self.is_valid_description(line):
-                descriptions.add(line)
-        
-        return descriptions
-    
-    def extract_descriptions_fallback(self, text):
-        """Fallback extraction for difficult cases"""
-        descriptions = set()
-        
-        # Try to extract any sentence that mentions visual elements
-        sentences = text.split('.')
-        for sentence in sentences:
-            sentence = sentence.strip()
-            if (sentence and 
-                len(sentence.split()) >= 3 and 
-                len(sentence) < 80 and
-                any(word in sentence.lower() for word in 
-                    ['image', 'picture', 'photo', 'shows', 'with', 'pattern', 'texture', 'color', 'object'])):
-                descriptions.add(sentence)
-        
-        return descriptions
-    
-    def is_valid_description(self, desc):
-        """Check if a description is valid"""
-        if not desc or len(desc) < 3:
-            return False
-        
-        words = desc.split()
-        if len(words) < 3 or len(words) > 15:
-            return False
-        
-        # Filter out instruction text
-        bad_starts = ['generate', 'write', 'create', 'you need', 'i am', 'higher score', 'be creative']
-        if any(desc.lower().startswith(bad) for bad in bad_starts):
-            return False
-        
-        return True
+    return results
 
     def __call__(self, task_dict: Dict[Text, List[Tuple[float, Text]]], **kwargs):
         """Task dict is a dictionary from filename to a list of tuples (float, txt)"""
