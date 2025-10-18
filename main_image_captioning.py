@@ -546,6 +546,12 @@ def main(args):
         model_kwargs={"torch_dtype": torch.bfloat16},
         device_map=args.device,
         trust_remote_code=True,
+        **{
+            "do_sample": True,
+            "temperature": 0.7,
+            "top_p": 0.9,
+            "max_new_tokens": 60,
+        }
     )
     print(f" ✅ Model ready: {args.text_model}")
     print(f" 🔎 Pipeline model path: {text_pipeline.model.config._name_or_path}")
