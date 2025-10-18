@@ -233,111 +233,111 @@ class Generator(object):
         )
 
     def run_on_message_batch(self, current_messages_batch):
-    """Generate text with model-specific optimizations but simple extraction"""
-    
-    # Fix tokenizer padding
-    if hasattr(self.text_pipeline.tokenizer, 'padding_side'):
-        original_padding_side = self.text_pipeline.tokenizer.padding_side
-        self.text_pipeline.tokenizer.padding_side = 'left'
-    
-    model_type = self.text_model_name.lower()
-    
-    # Model-specific generation parameters (KEEP FROM FORK)
-    if "qwen" in model_type:
-        outputs = self.text_pipeline(
-            current_messages_batch,
-            batch_size=len(current_messages_batch),
-            max_new_tokens=180,
-            do_sample=True,
-            temperature=0.5,
-            top_p=0.8,
-            top_k=30,
-            return_full_text=False,
-            truncation=True,
-            pad_token_id=self.text_pipeline.tokenizer.pad_token_id,
-            eos_token_id=self.text_pipeline.tokenizer.eos_token_id,
-            repetition_penalty=1.2,
-            no_repeat_ngram_size=2,
-        )
-    elif "gpt" in model_type:
-        outputs = self.text_pipeline(
-            current_messages_batch,
-            batch_size=len(current_messages_batch),
-            max_new_tokens=200,
-            do_sample=True,
-            temperature=0.7,
-            top_p=0.85,
-            top_k=40,
-            return_full_text=False,
-            truncation=True,
-            pad_token_id=self.text_pipeline.tokenizer.pad_token_id,
-            eos_token_id=self.text_pipeline.tokenizer.eos_token_id,
-            repetition_penalty=1.2,
-        )
-    elif "llama" in model_type or "mistral" in model_type:
-        outputs = self.text_pipeline(
-            current_messages_batch,
-            batch_size=len(current_messages_batch),
-            max_new_tokens=min(self.max_new_tokens, 300),
-            do_sample=True,
-            temperature=0.7,
-            top_p=0.9,
-            return_full_text=False,
-            truncation=True,
-            pad_token_id=self.text_pipeline.tokenizer.pad_token_id,
-            eos_token_id=self.text_pipeline.tokenizer.eos_token_id,
-            repetition_penalty=1.1,
-        )
-    else:
-        # Default parameters
-        outputs = self.text_pipeline(
-            current_messages_batch,
-            batch_size=len(current_messages_batch),
-            max_new_tokens=min(self.max_new_tokens, 250),
-            do_sample=True,
-            temperature=0.7,
-            top_p=0.9,
-            return_full_text=False,
-            truncation=True,
-            pad_token_id=getattr(self.text_pipeline.tokenizer, 'pad_token_id', 0),
-            eos_token_id=getattr(self.text_pipeline.tokenizer, 'eos_token_id', 0),
-            repetition_penalty=1.1,
-        )
-    
-    # SIMPLE EXTRACTION (FROM ORIGINAL REPO)
-    results = []
-    for text in outputs:
-        # Extract generated text
-        generated_text = ""
-        if isinstance(text, list) and len(text) > 0:
-            if isinstance(text[0], dict) and "generated_text" in text[0]:
-                generated_text = text[0]["generated_text"]
-            else:
-                generated_text = str(text[0])
-        elif isinstance(text, dict) and "generated_text" in text:
-            generated_text = text["generated_text"]
+        """Generate text with model-specific optimizations but simple extraction"""
+        
+        # Fix tokenizer padding
+        if hasattr(self.text_pipeline.tokenizer, 'padding_side'):
+            original_padding_side = self.text_pipeline.tokenizer.padding_side
+            self.text_pipeline.tokenizer.padding_side = 'left'
+        
+        model_type = self.text_model_name.lower()
+        
+        # Model-specific generation parameters (KEEP FROM FORK)
+        if "qwen" in model_type:
+            outputs = self.text_pipeline(
+                current_messages_batch,
+                batch_size=len(current_messages_batch),
+                max_new_tokens=180,
+                do_sample=True,
+                temperature=0.5,
+                top_p=0.8,
+                top_k=30,
+                return_full_text=False,
+                truncation=True,
+                pad_token_id=self.text_pipeline.tokenizer.pad_token_id,
+                eos_token_id=self.text_pipeline.tokenizer.eos_token_id,
+                repetition_penalty=1.2,
+                no_repeat_ngram_size=2,
+            )
+        elif "gpt" in model_type:
+            outputs = self.text_pipeline(
+                current_messages_batch,
+                batch_size=len(current_messages_batch),
+                max_new_tokens=200,
+                do_sample=True,
+                temperature=0.7,
+                top_p=0.85,
+                top_k=40,
+                return_full_text=False,
+                truncation=True,
+                pad_token_id=self.text_pipeline.tokenizer.pad_token_id,
+                eos_token_id=self.text_pipeline.tokenizer.eos_token_id,
+                repetition_penalty=1.2,
+            )
+        elif "llama" in model_type or "mistral" in model_type:
+            outputs = self.text_pipeline(
+                current_messages_batch,
+                batch_size=len(current_messages_batch),
+                max_new_tokens=min(self.max_new_tokens, 300),
+                do_sample=True,
+                temperature=0.7,
+                top_p=0.9,
+                return_full_text=False,
+                truncation=True,
+                pad_token_id=self.text_pipeline.tokenizer.pad_token_id,
+                eos_token_id=self.text_pipeline.tokenizer.eos_token_id,
+                repetition_penalty=1.1,
+            )
         else:
-            generated_text = str(text)
+            # Default parameters
+            outputs = self.text_pipeline(
+                current_messages_batch,
+                batch_size=len(current_messages_batch),
+                max_new_tokens=min(self.max_new_tokens, 250),
+                do_sample=True,
+                temperature=0.7,
+                top_p=0.9,
+                return_full_text=False,
+                truncation=True,
+                pad_token_id=getattr(self.text_pipeline.tokenizer, 'pad_token_id', 0),
+                eos_token_id=getattr(self.text_pipeline.tokenizer, 'eos_token_id', 0),
+                repetition_penalty=1.1,
+            )
         
-        # Use simple strip_line_counters from original repo
-        extracted_descriptions = strip_line_counters(generated_text)
+        # SIMPLE EXTRACTION (FROM ORIGINAL REPO)
+        results = []
+        for text in outputs:
+            # Extract generated text
+            generated_text = ""
+            if isinstance(text, list) and len(text) > 0:
+                if isinstance(text[0], dict) and "generated_text" in text[0]:
+                    generated_text = text[0]["generated_text"]
+                else:
+                    generated_text = str(text[0])
+            elif isinstance(text, dict) and "generated_text" in text:
+                generated_text = text["generated_text"]
+            else:
+                generated_text = str(text)
+            
+            # Use simple strip_line_counters from original repo
+            extracted_descriptions = strip_line_counters(generated_text)
+            
+            # Minimal fallback
+            if len(extracted_descriptions) == 0:
+                extracted_descriptions = {"Generated image description"}
+            
+            results.append(extracted_descriptions)
+            
+            if self.verbose > 0:
+                print(f"Model: {self.text_model_name}")
+                print(f"Generated text: {generated_text[:150]}...")
+                print(f"Extracted {len(extracted_descriptions)} descriptions")
         
-        # Minimal fallback
-        if len(extracted_descriptions) == 0:
-            extracted_descriptions = {"Generated image description"}
+        # Restore padding
+        if hasattr(self.text_pipeline.tokenizer, 'padding_side'):
+            self.text_pipeline.tokenizer.padding_side = original_padding_side
         
-        results.append(extracted_descriptions)
-        
-        if self.verbose > 0:
-            print(f"Model: {self.text_model_name}")
-            print(f"Generated text: {generated_text[:150]}...")
-            print(f"Extracted {len(extracted_descriptions)} descriptions")
-    
-    # Restore padding
-    if hasattr(self.text_pipeline.tokenizer, 'padding_side'):
-        self.text_pipeline.tokenizer.padding_side = original_padding_side
-    
-    return results
+        return results
 
     def __call__(self, task_dict: Dict[Text, List[Tuple[float, Text]]], **kwargs):
         """Task dict is a dictionary from filename to a list of tuples (float, txt)"""
