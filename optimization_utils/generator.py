@@ -323,6 +323,13 @@ class Generator(object):
                 eos_token_id=getattr(self.text_pipeline.tokenizer, 'eos_token_id', 0),
                 repetition_penalty=1.1,
             )
+
+        # ✅ DEBUG: print raw outputs immediately after generation
+        print("\n=== RAW MODEL OUTPUTS ===")
+        print(f"Model: {self.text_model_name}")
+        for i, out in enumerate(outputs):
+            print(f"Output {i}: {out}")
+        print("=== END RAW ===\n")
         
         # SIMPLE EXTRACTION (FROM ORIGINAL REPO)
         results = []
