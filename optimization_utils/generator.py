@@ -314,6 +314,10 @@ class Generator(object):
         for i, out in enumerate(outputs):
             print(f"Output {i}: {out}")
         print("=== END RAW ===\n")
+
+        print("=== DEBUG PIPELINE OUTPUT ===")
+        print(outputs)
+        print("=== END DEBUG ===")
         
         # SIMPLE EXTRACTION (FROM ORIGINAL REPO)
         results = []
