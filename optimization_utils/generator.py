@@ -378,7 +378,9 @@ class Generator(object):
         for i in range(0, len(messages), self.batch_size):
             current_messages_batch = messages[i : i + self.batch_size]
             outputs = self.run_on_message_batch(current_messages_batch)
-            texts = [list(text - lines_set[i]) for i, text in enumerate(outputs)]
+            # CHANGED
+            texts = [list(set(text) - lines_set[i]) for i, text in enumerate(outputs)]
+            # texts = [list(text - lines_set[i]) for i, text in enumerate(outputs)]
 
             assert len(texts) == len(current_messages_batch), (
                 len(texts),
