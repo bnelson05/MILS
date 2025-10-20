@@ -244,10 +244,6 @@ class Generator(object):
         
         # Model-specific generation parameters (KEEP FROM FORK)
         if "qwen" in model_type:
-            current_messages_batch = [
-                msg + "\n\nRespond ONLY with 5 numbered short image descriptions, one per line, nothing else. No markdown, no explanations."
-                for msg in current_messages_batch
-            ]
             outputs = self.text_pipeline(
                 current_messages_batch,
                 batch_size=len(current_messages_batch),
