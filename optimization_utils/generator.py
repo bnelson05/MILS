@@ -14,29 +14,45 @@ import re
 
 
 def strip_line_counters(text):
-    # Split the text into lines
-    lines = text.split("\n")
-
-    # Strip the line counters and collect the cleaned lines
+    """
+    Extract clean image descriptions from model output.
+    
+    Handles:
+    - Old style: 1. Description
+    - New style: **1\.** "Description" or - **Description:** ...
+    - Ignores short lines, meta-commentary, scores, and repeated lines
+    """
     cleaned_lines = []
-    for line in lines:
-        # Check if the line contains a period followed by a space, which is expected after the counter
-        if ". " in line[:5]:  # A huristic to only count
-            # Find the first period which is used to separate the counter from the text
-            period_index = line.find(".")
-            # Extract the text after the period and the space
-            cleaned_line = line[period_index + 2 :]
-            text = (
-                cleaned_line.split("(")[0]
-                .strip()
-                .replace("<|endoftext|>", "")
-                .replace("<pad>", "")
-            )
-            text = text.replace("!", "")
-            if text and text not in cleaned_lines:
-                cleaned_lines.append(text)
 
-    return set(cleaned_lines)
+    # Split lines
+    lines = text.splitlines()
+
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+
+        # Pattern 1: Numbered list with optional markdown, e.g., **1\.** "Description"
+        match = re.match(r'^\**\d+\\?\.?\**[\s\-]*["\*\-]*\s*(.+)', line)
+        if match:
+            desc = match.group(1).strip()
+            # Remove quotes and markdown
+            desc = desc.strip('"').strip("'").replace('**', '')
+            # Skip meta-commentary
+            if len(desc) > 5 and not any(bad in desc.lower() for bad in ['score', 'scoring', 'description', 'captur', 'output']):
+                cleaned_lines.append(desc)
+            continue
+
+        # Pattern 2: Quoted description anywhere in the line
+        quotes = re.findall(r'"([^"]+)"', line)
+        for desc in quotes:
+            desc = desc.strip()
+            if len(desc) > 5 and desc not in cleaned_lines:
+                if not any(bad in desc.lower() for bad in ['score', 'description', 'caption']):
+                    cleaned_lines.append(desc)
+
+    # Remove duplicates
+    return list(set(cleaned_lines))
 
 
 def extract_descriptions_from_gpt2(text):
