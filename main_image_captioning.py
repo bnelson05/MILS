@@ -562,21 +562,32 @@ def main(args):
     if getattr(text_pipeline.model.config, 'pad_token_id', None) is None:
         text_pipeline.model.config.pad_token_id = text_pipeline.tokenizer.pad_token_id
 
-    # Fixed set of 16 COCO image IDs
-    fixed_image_ids = [
-        442539, 170898, 544857, 285820, 188414, 385248, 249227, 502311,
-        391895, 397133, 37777, 252219, 87038, 174482, 403385, 6818
-    ]
-    
-    # Only keep the ones that actually exist in the folder
+    # Get ALL images from the folder (not hardcoded list)
     images_dir = args.images_path
     if not images_dir.endswith("val2014"):
         images_dir = os.path.join(images_dir, "val2014")
     
-    image_ids = [
-        img_id for img_id in fixed_image_ids
-        if os.path.exists(os.path.join(images_dir, f"COCO_val2014_{img_id:012}.jpg"))
-    ]
+    # Read whatever images are actually in the folder
+    import glob
+    image_files = glob.glob(os.path.join(images_dir, "COCO_val2014_*.jpg"))
+    image_ids = [int(os.path.basename(f).split('_')[-1].split('.')[0]) for f in image_files]
+    
+    print(f"📂 Found {len(image_ids)} images in folder: {image_ids}")
+    # # Fixed set of 16 COCO image IDs
+    # fixed_image_ids = [
+    #     442539, 170898, 544857, 285820, 188414, 385248, 249227, 502311,
+    #     391895, 397133, 37777, 252219, 87038, 174482, 403385, 6818
+    # ]
+    
+    # # Only keep the ones that actually exist in the folder
+    # images_dir = args.images_path
+    # if not images_dir.endswith("val2014"):
+    #     images_dir = os.path.join(images_dir, "val2014")
+    
+    # image_ids = [
+    #     img_id for img_id in fixed_image_ids
+    #     if os.path.exists(os.path.join(images_dir, f"COCO_val2014_{img_id:012}.jpg"))
+    # ]
     
     # Skip ones already processed
     image_ids = [
