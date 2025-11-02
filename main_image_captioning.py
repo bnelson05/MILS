@@ -564,7 +564,8 @@ def main(args):
 
     # Fixed set of 16 COCO image IDs
     fixed_image_ids = [
-        2685, 2923, 3156, 3255, 3501, 3661
+        442539, 170898, 544857, 285820, 188414, 385248, 249227, 502311,
+              391895, 397133, 37777, 252219, 87038, 174482, 403385, 6818
     ]
     
     # Only keep the ones that actually exist in the folder
