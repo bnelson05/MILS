@@ -563,10 +563,11 @@ def main(args):
         text_pipeline.model.config.pad_token_id = text_pipeline.tokenizer.pad_token_id
 
     # Fixed set of 16 COCO image IDs
-    fixed_image_ids = [
-        442539, 170898, 544857, 285820, 188414, 385248, 249227, 502311,
-              391895, 397133, 37777, 252219, 87038, 174482, 403385, 6818
-    ]
+    # fixed_image_ids = [
+    #     442539, 170898, 544857, 285820, 188414, 385248, 249227, 502311,
+    #           391895, 397133, 37777, 252219, 87038, 174482, 403385, 6818
+    # ]
+    fixed_image_ids = [559047]
     
     # Only keep the ones that actually exist in the folder
     images_dir = args.images_path
