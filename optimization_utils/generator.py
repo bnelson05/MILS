@@ -14,7 +14,7 @@ import re
 
 
 def strip_line_counters(text):
-    """Extract descriptions - handles multi-line numbered format"""
+    """Extract descriptions - handles multiple formats"""
     import re
     
     lines = text.split("\n")
@@ -27,28 +27,38 @@ def strip_line_counters(text):
         # Remove markdown
         line = line.replace('**', '').replace('*', '')
         
-        # Check if this line is a number (1. 2. etc.)
+        # Pattern 1: Markdown table format "1.| Description"
+        match = re.match(r'^\d+\.\|\s*(.+)', line)
+        if match:
+            desc = match.group(1).strip().replace('"', '').replace("'", "")
+            if len(desc) > 10 and desc not in cleaned_lines:
+                if not any(bad in desc.lower() for bad in ['counter', 'description:', '---|---', 'these additions']):
+                    cleaned_lines.append(desc)
+            i += 1
+            continue
+        
+        # Pattern 2: Number on separate line from description
         if re.match(r'^\d+[\.\)]\s*$', line) and i + 1 < len(lines):
-            # Description is on the NEXT line
             next_line = lines[i + 1].strip()
             if next_line and len(next_line) > 10:
                 desc = next_line.replace('"', '').replace("'", "").strip()
                 if desc and desc not in cleaned_lines:
-                    # Filter out meta-commentary
                     if not any(bad in desc.lower() for bad in ['score', 'entry combines', 'these entries', 'by adding', 'combining']):
                         cleaned_lines.append(desc)
-            i += 2  # Skip both lines
+            i += 2
+            continue
         
-        # Also check for number and description on same line
-        elif re.match(r'^\d+[\.\)]\s+(.+)', line):
-            match = re.match(r'^\d+[\.\)]\s+(.+)', line)
+        # Pattern 3: Number and description on same line "1. Description"
+        match = re.match(r'^\d+[\.\)]\s+(.+)', line)
+        if match:
             desc = match.group(1).strip().replace('"', '').replace("'", "")
             if len(desc) > 10 and desc not in cleaned_lines:
                 if not any(bad in desc.lower() for bad in ['score', 'entry', 'these', 'by adding', 'combining']):
                     cleaned_lines.append(desc)
             i += 1
-        else:
-            i += 1
+            continue
+        
+        i += 1
     
     return set(cleaned_lines)
 
