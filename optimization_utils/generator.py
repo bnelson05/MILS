@@ -14,54 +14,45 @@ import re
 
 
 def strip_line_counters(text):
-    """Extract descriptions - handles multiple formats"""
-    import re
+    """
+    Extract clean image descriptions from model output.
     
-    lines = text.split("\n")
+    Handles:
+    - Old style: 1. Description
+    - New style: **1\.** "Description" or - **Description:** ...
+    - Ignores short lines, meta-commentary, scores, and repeated lines
+    """
     cleaned_lines = []
-    
-    i = 0
-    while i < len(lines):
-        line = lines[i].strip()
-        
-        # Remove markdown
-        line = line.replace('**', '').replace('*', '')
-        
-        # Pattern 1: Markdown table format "1.| Description"
-        match = re.match(r'^\d+\.\|\s*(.+)', line)
-        if match:
-            desc = match.group(1).strip().replace('"', '').replace("'", "")
-            if len(desc) > 10 and desc not in cleaned_lines:
-                if not any(bad in desc.lower() for bad in ['counter', 'description:', '---|---', 'these additions']):
-                    cleaned_lines.append(desc)
-            i += 1
-            continue
-        
-        # Pattern 2: Number on separate line from description
-        if re.match(r'^\d+[\.\)]\s*$', line) and i + 1 < len(lines):
-            next_line = lines[i + 1].strip()
-            if next_line and len(next_line) > 10:
-                desc = next_line.replace('"', '').replace("'", "").strip()
-                if desc and desc not in cleaned_lines:
-                    if not any(bad in desc.lower() for bad in ['score', 'entry combines', 'these entries', 'by adding', 'combining']):
-                        cleaned_lines.append(desc)
-            i += 2
-            continue
-        
-        # Pattern 3: Number and description on same line "1. Description"
-        match = re.match(r'^\d+[\.\)]\s+(.+)', line)
-        if match:
-            desc = match.group(1).strip().replace('"', '').replace("'", "")
-            if len(desc) > 10 and desc not in cleaned_lines:
-                if not any(bad in desc.lower() for bad in ['score', 'entry', 'these', 'by adding', 'combining']):
-                    cleaned_lines.append(desc)
-            i += 1
-            continue
-        
-        i += 1
-    
-    return set(cleaned_lines)
 
+    # Split lines
+    lines = text.splitlines()
+
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+
+        # Pattern 1: Numbered list with optional markdown, e.g., **1\.** "Description"
+        match = re.match(r'^\**\d+\\?\.?\**[\s\-]*["\*\-]*\s*(.+)', line)
+        if match:
+            desc = match.group(1).strip()
+            # Remove quotes and markdown
+            desc = desc.strip('"').strip("'").replace('**', '')
+            # Skip meta-commentary
+            if len(desc) > 5 and not any(bad in desc.lower() for bad in ['score', 'scoring', 'description', 'captur', 'output']):
+                cleaned_lines.append(desc)
+            continue
+
+        # Pattern 2: Quoted description anywhere in the line
+        quotes = re.findall(r'"([^"]+)"', line)
+        for desc in quotes:
+            desc = desc.strip()
+            if len(desc) > 5 and desc not in cleaned_lines:
+                if not any(bad in desc.lower() for bad in ['score', 'description', 'caption']):
+                    cleaned_lines.append(desc)
+
+    # Remove duplicates
+    return list(set(cleaned_lines))
 
 def extract_descriptions_from_gpt2(text):
     """Enhanced extraction specifically for GPT-2 outputs that may not follow perfect format"""
