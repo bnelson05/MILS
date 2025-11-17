@@ -567,16 +567,19 @@ def main(args):
     #     442539, 170898, 544857, 285820, 188414, 385248, 249227, 502311,
     #           391895, 397133, 37777, 252219, 87038, 174482, 403385, 6818
     # ]
-    fixed_image_ids = [559047]
+    # fixed_image_ids = [559047]
     
     # Only keep the ones that actually exist in the folder
     images_dir = args.images_path
     if not images_dir.endswith("val2014"):
         images_dir = os.path.join(images_dir, "val2014")
     
+    # Find all COCO images and extract their IDs
+    import glob
+    image_files = glob.glob(os.path.join(images_dir, "COCO_val2014_*.jpg"))
     image_ids = [
-        img_id for img_id in fixed_image_ids
-        if os.path.exists(os.path.join(images_dir, f"COCO_val2014_{img_id:012}.jpg"))
+        int(os.path.basename(f).replace("COCO_val2014_", "").replace(".jpg", ""))
+        for f in image_files
     ]
     
     # Skip ones already processed
@@ -584,6 +587,8 @@ def main(args):
         x for x in image_ids
         if not os.path.exists(os.path.join(args.output_dir, f"{x}"))
     ]
+    
+    print(f"Found {len(image_ids)} images to process")
     
     # Respect process splitting (if running multi-process)
     image_ids = image_ids[args.process :: args.num_processes]
