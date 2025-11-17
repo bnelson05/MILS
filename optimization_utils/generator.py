@@ -33,6 +33,11 @@ def strip_line_counters(text):
         if not line:
             i += 1
             continue
+        
+        # Skip header/intro lines
+        if any(skip in line.lower() for skip in ['here are', 'five more', 'additional', 'following are']):
+            i += 1
+            continue
             
         # Check if this line is just a number marker: **1\.** or 1. or **1.**
         if re.match(r'^\**\d+\\?\.?\**\s*$', line):
