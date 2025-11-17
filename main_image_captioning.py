@@ -635,7 +635,7 @@ def get_args_parser():
     parser.add_argument(
         "--llm_batch_size", default=16, type=int, help="Batch size for llms"
     )
-    parser.add_argument("--keep_previous", default=25, type=int, help="Keep previous")
+    parser.add_argument("--keep_previous", default=5, type=int, help="Keep previous")
     parser.add_argument(
         "--requested_number", default=20, type=int, help="How many to request"
     )
