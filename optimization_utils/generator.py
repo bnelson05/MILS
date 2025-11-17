@@ -19,40 +19,58 @@ def strip_line_counters(text):
     
     Handles:
     - Old style: 1. Description
-    - New style: **1\.** "Description" or - **Description:** ...
-    - Ignores short lines, meta-commentary, scores, and repeated lines
+    - New style: **1\.** on one line, Description on next line
+    - Inline style: **1\.** Description on same line
     """
     cleaned_lines = []
-
-    # Split lines
     lines = text.splitlines()
-
-    for line in lines:
-        line = line.strip()
+    
+    i = 0
+    while i < len(lines):
+        line = lines[i].strip()
+        
+        # Skip empty lines
         if not line:
+            i += 1
             continue
-
-        # Pattern 1: Numbered list with optional markdown, e.g., **1\.** "Description"
+            
+        # Check if this line is just a number marker: **1\.** or 1. or **1.**
+        if re.match(r'^\**\d+\\?\.?\**\s*$', line):
+            # Next line should be the description
+            if i + 1 < len(lines):
+                next_line = lines[i + 1].strip()
+                if next_line and len(next_line) > 10:  # Minimum length check
+                    # Clean up the description
+                    desc = next_line.strip('"').strip("'").replace('**', '').strip()
+                    # Skip if it contains meta-commentary
+                    if not any(bad in desc.lower() for bad in ['here are', 'five more', 'summary', 'summaries', 'entry combines', 'these entries']):
+                        cleaned_lines.append(desc)
+                i += 2  # Skip both the marker and description line
+                continue
+        
+        # Check if number and description are on same line: 1. Description or **1\.** Description
         match = re.match(r'^\**\d+\\?\.?\**[\s\-]*["\*\-]*\s*(.+)', line)
         if match:
             desc = match.group(1).strip()
-            # Remove quotes and markdown
-            desc = desc.strip('"').strip("'").replace('**', '')
-            # Skip meta-commentary
-            if len(desc) > 5 and not any(bad in desc.lower() for bad in ['score', 'scoring', 'description', 'captur', 'output']):
-                cleaned_lines.append(desc)
-            continue
-
-        # Pattern 2: Quoted description anywhere in the line
-        quotes = re.findall(r'"([^"]+)"', line)
-        for desc in quotes:
-            desc = desc.strip()
-            if len(desc) > 5 and desc not in cleaned_lines:
-                if not any(bad in desc.lower() for bad in ['score', 'description', 'caption']):
+            desc = desc.strip('"').strip("'").replace('**', '').strip()
+            # Must be at least 10 chars and not meta-commentary
+            if len(desc) > 10:
+                if not any(bad in desc.lower() for bad in ['here are', 'five more', 'summary', 'summaries', 'entry combines']):
                     cleaned_lines.append(desc)
-
-    # Remove duplicates
-    return list(set(cleaned_lines))
+            i += 1
+            continue
+        
+        i += 1
+    
+    # Remove duplicates while preserving order
+    seen = set()
+    result = []
+    for line in cleaned_lines:
+        if line not in seen:
+            seen.add(line)
+            result.append(line)
+    
+    return result
 
 def extract_descriptions_from_gpt2(text):
     """Enhanced extraction specifically for GPT-2 outputs that may not follow perfect format"""
