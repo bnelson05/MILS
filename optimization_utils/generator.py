@@ -40,10 +40,13 @@ def strip_line_counters(text):
             continue
             
         # Check if this line is just a number marker: **1\.** or 1. or **1.**
-        if re.match(r'^\**\d+\\?\.?\**\s*$', line):
-            # Next line should be the description
-            if i + 1 < len(lines):
-                next_line = lines[i + 1].strip()
+        if re.match(r'^\**\d+\\?\.?\**\s*$', line):  # Found "1."
+            j = i + 1
+            while j < len(lines) and not lines[j].strip():  # SKIP EMPTY LINES
+                j += 1
+            
+            if j < len(lines):
+                next_line = lines[j].strip()  # Now looks at FIRST NON-EMPTY LINE
                 if next_line and len(next_line) > 10:  # Minimum length check
                     # Clean up the description
                     desc = next_line.strip('"').strip("'").replace('**', '').strip()
