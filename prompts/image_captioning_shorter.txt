@@ -1,10 +1,23 @@
 You need to provide a short image description. 
 I am providing to you a list of short image descriptions and scores. 
 Higher score means that the image description characterizes the image better: 
-
 {descriptions}
-
 Generate additional {requested_number} short image descriptions that you think that will maximize the score and fully capture the image. 
 Be concrete and try to find elements that are unique to this image. 
 You can introduce new elements to the descriptions, combine unique elements and objects from provided descriptions to form new descriptions, rephrase individual descriptions, drop elements, or simplify descriptions. 
-Be creative and don't be afraid to come up with erroneous descriptions. Put each description in a different line, with a counter at the beginning (e.g. "1. ..."), and try to keep them very short (up to 10 words).
+Be creative and don't be afraid to come up with erroneous descriptions.
+
+CRITICAL FORMATTING RULES:
+- Output ONLY the descriptions, nothing else
+- NO preamble, NO explanations, NO commentary
+- Start each description with a number and period: "1. " then the description
+- Each description on its own line
+- Keep each description very short (up to 10 words)
+- Generate exactly {requested_number} descriptions
+
+Example output format:
+1. A cat sitting on a windowsill
+2. An orange tabby by a window
+3. A pet resting indoors
+
+Now generate {requested_number} descriptions:
