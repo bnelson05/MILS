@@ -1,15 +1,80 @@
-A photo
-An image
-A scene
-Something
-A picture
-Objects in view
-A view
-Things
-An object
-Something interesting
-A moment
-Items
-A setting
-Content
-A display
+A person
+A bicycle
+A car
+A motorcycle
+An airplane
+A bus
+A train
+A truck
+A boat
+A traffic light
+A fire hydrant
+A stop sign
+A parking meter
+A bench
+A bird
+A cat
+A dog
+A horse
+A sheep
+A cow
+An elephant
+A bear
+A zebra
+A giraffe
+A backpack
+An umbrella
+A handbag
+A tie
+A suitcase
+A frisbee
+Skis
+A snowboard
+A sports ball
+A kite
+A baseball bat
+A baseball glove
+A skateboard
+A surfboard
+A tennis racket
+A bottle
+A wine glass
+A cup
+A fork
+A knife
+A spoon
+A bowl
+A banana
+An apple
+A sandwich
+An orange
+Broccoli
+A carrot
+A hot dog
+A pizza
+A donut
+A cake
+A chair
+A couch
+A potted plant
+A bed
+A dining table
+A toilet
+A tv
+A laptop
+A mouse
+A remote
+A keyboard
+A cell phone
+A microwave
+An oven
+A toaster
+A sink
+A refrigerator
+A book
+A clock
+A vase
+Scissors
+A teddy bear
+A hair drier
+A toothbrush
